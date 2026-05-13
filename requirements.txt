@@ -4,5 +4,8 @@ sqlalchemy
 psycopg2-binary
 python-dotenv
 alembic
+
+langchain
+langchain-core
 langchain-google-genai
-langchain==0.0.350
+google-genai

@@ -1,385 +1,358 @@
 import os
+from typing import Any
+
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
+
 from app.database import SessionLocal
 from app.models.models import (
-    Paciente, Herramienta_Must, Frecuencia_Consumo_Alimentos,
-    Antecedentes_Patologicos, Circunstancias_Ambientales,
-    Examen_Fisico, Examenes_Bioquimicos, Datos_Alimentarios,
-    Composicion_Alimentos, AnalisisProximal, Minerales,
-    Vitaminas, AcidosGrasosColesterol, R24Detalle
+    Paciente,
+    Herramienta_Must,
+    Frecuencia_Consumo_Alimentos,
+    Antecedentes_Patologicos,
+    Circunstancias_Ambientales,
+    Examen_Fisico,
+    Examenes_Bioquimicos,
+    Datos_Alimentarios,
+    Composicion_Alimentos,
+    ListaIntercambios,
 )
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 
 load_dotenv()
-chat = ChatGoogleGenerativeAI(model="gemini-2.0-flash", api_key=os.getenv("GOOGLE_API_KEY"))
 
-# 🩺 Agente 1: Analizador de datos clínicos
-from sqlalchemy.orm import Session
-from app.database import SessionLocal
-from app.models.models import *
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-import os
-from dotenv import load_dotenv
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL")
 
-load_dotenv()
-chat = ChatGoogleGenerativeAI(model="gemini-2.0-flash", api_key=os.getenv("GOOGLE_API_KEY"))
+if not GOOGLE_API_KEY:
+    raise RuntimeError("Falta configurar GOOGLE_API_KEY en el archivo .env")
+
+chat = ChatGoogleGenerativeAI(
+    model=GEMINI_MODEL,
+    google_api_key=GOOGLE_API_KEY,
+    temperature=0.4,
+)
+
+
+def safe(value: Any, default: str = "No reportado") -> Any:
+    return value if value not in [None, ""] else default
+
+
+def boolean_str(value: Any) -> str:
+    if value is None or value == "":
+        return "No reportado"
+    return "Sí" if bool(value) else "No"
+
+
+def invoke_agent(system_prompt: str, human_prompt: str, agent_name: str) -> str:
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            ("human", human_prompt),
+        ]
+    )
+
+    chain = prompt | chat
+    response = chain.invoke({})
+
+    content = getattr(response, "content", None)
+    if not content or not str(content).strip():
+        raise ValueError(f"La respuesta del agente {agent_name} es vacía.")
+
+    return str(content).strip()
+
 
 def analizar_datos_clinicos(paciente_id: int) -> str:
     db: Session = SessionLocal()
 
-    paciente = db.query(Paciente).filter(Paciente.id == paciente_id).first()
-    must = db.query(Herramienta_Must).filter(Herramienta_Must.id_paciente == paciente_id).first()
-    antecedentes = db.query(Antecedentes_Patologicos).filter(Antecedentes_Patologicos.id_paciente == paciente_id).first()
-    circunstancia = db.query(Circunstancias_Ambientales).filter(Circunstancias_Ambientales.id_paciente == paciente_id).first()
-    examen_fisico = db.query(Examen_Fisico).filter(Examen_Fisico.id_paciente == paciente_id).first()
-    bioquimico = db.query(Examenes_Bioquimicos).filter(Examenes_Bioquimicos.id_paciente == paciente_id).first()
-    datos_alimentarios = db.query(Datos_Alimentarios).filter(Datos_Alimentarios.paciente_id == paciente_id).first()
-    frecuencia = db.query(Frecuencia_Consumo_Alimentos).filter(Frecuencia_Consumo_Alimentos.id_paciente == paciente_id).all()
+    try:
+        paciente = db.query(Paciente).filter(Paciente.id == paciente_id).first()
+        if not paciente:
+            return "Paciente no encontrado."
 
-    if not paciente:
-        return "Paciente no encontrado."
-
-    def safe(value):
-        return value if value not in [None, "", 0] else "No reportado"
-
-    def boolean_str(value):
-        return "Sí" if value else "No"
-
-    # Armar tabla resumen de frecuencia de alimentos
-    resumen_frecuencia = ""
-    for f in frecuencia:
-        resumen_frecuencia += (
-            f"- {f.grupo_alimentos}: {f.alimento} → "
-            f"{'✅ Consume' if f.consume_si else '❌ No consume'}, Frecuencia: "
-            f"{'Día' if f.frecuencia_dia else ''} "
-            f"{'Semana' if f.frecuencia_semana else ''} "
-            f"{'Mes' if f.frecuencia_mes else ''} → "
-            f"{'Muy frecuente' if f.clasificacion_muy_frecuente else 'Frecuente' if f.clasificacion_frecuente else 'Poco frecuente' if f.clasificacion_poco_frecuente else 'No clasificado'}\n"
+        must = (
+            db.query(Herramienta_Must)
+            .filter(Herramienta_Must.id_paciente == paciente_id)
+            .first()
+            or Herramienta_Must()
         )
 
-    system_prompt = SystemMessagePromptTemplate.from_template("""
-Eres un nutricionista clínico. Tu tarea es generar un **informe clínico-nutricional detallado** del paciente con base en la información proporcionada. Incluye:
+        antecedentes = (
+            db.query(Antecedentes_Patologicos)
+            .filter(Antecedentes_Patologicos.id_paciente == paciente_id)
+            .first()
+            or Antecedentes_Patologicos()
+        )
 
-- Estado antropométrico y riesgo nutricional
-- Perfil bioquímico e interpretaciones
-- Todos los antecedentes personales y familiares
-- Condiciones ambientales y sociales que afecten la nutrición
-- Examen físico completo
-- Datos alimentarios y frecuencia de consumo
-""")
+        circunstancia = (
+            db.query(Circunstancias_Ambientales)
+            .filter(Circunstancias_Ambientales.id_paciente == paciente_id)
+            .first()
+            or Circunstancias_Ambientales()
+        )
 
-    human_prompt = HumanMessagePromptTemplate.from_template(f"""
-📌 INFORMACIÓN DEL PACIENTE:
-Nombre: {safe(paciente.nombre_completo)}, Edad: {safe(paciente.edad)}, Sexo: {safe(paciente.sexo)}
-Peso actual: {safe(paciente.peso_actual)} kg, Peso usual: {safe(paciente.peso_usual)} kg
-Talla: {safe(paciente.talla)} cm, IMC: {safe(paciente.ind_masa_corporal)} ({safe(paciente.clasificacion_imc)})
+        examen_fisico = (
+            db.query(Examen_Fisico)
+            .filter(Examen_Fisico.id_paciente == paciente_id)
+            .first()
+            or Examen_Fisico()
+        )
+
+        bioquimico = (
+            db.query(Examenes_Bioquimicos)
+            .filter(Examenes_Bioquimicos.id_paciente == paciente_id)
+            .first()
+            or Examenes_Bioquimicos()
+        )
+
+        datos_alimentarios = (
+            db.query(Datos_Alimentarios)
+            .filter(Datos_Alimentarios.paciente_id == paciente_id)
+            .first()
+            or Datos_Alimentarios()
+        )
+
+        frecuencia = (
+            db.query(Frecuencia_Consumo_Alimentos)
+            .filter(Frecuencia_Consumo_Alimentos.id_paciente == paciente_id)
+            .all()
+        )
+
+        resumen_frecuencia = ""
+        for f in frecuencia:
+            resumen_frecuencia += (
+                f"- {safe(f.grupo_alimentos)}: {safe(f.alimento)} -> "
+                f"{'Consume' if f.consume_si else 'No consume'}, "
+                f"Frecuencia: "
+                f"{'Día' if f.frecuencia_dia else ''} "
+                f"{'Semana' if f.frecuencia_semana else ''} "
+                f"{'Mes' if f.frecuencia_mes else ''} -> "
+                f"{'Muy frecuente' if f.clasificacion_muy_frecuente else 'Frecuente' if f.clasificacion_frecuente else 'Poco frecuente' if f.clasificacion_poco_frecuente else 'No clasificado'}\n"
+            )
+
+        system_prompt = """
+Eres un nutricionista clínico. Tu tarea es generar un resumen clínico-nutricional útil para construir un plan alimentario.
+
+Incluye:
+- Estado antropométrico.
+- Riesgo nutricional.
+- Perfil bioquímico.
+- Antecedentes relevantes.
+- Circunstancias sociales o económicas.
+- Examen físico.
+- Datos alimentarios.
+- Frecuencia de consumo.
+
+No inventes datos. Si falta información, marca como no reportado.
+Sé claro, organizado y clínicamente prudente.
+"""
+
+        human_prompt = f"""
+INFORMACIÓN DEL PACIENTE:
+Nombre: {safe(paciente.nombre_completo)}
+Edad: {safe(paciente.edad)}
+Sexo: {safe(paciente.sexo)}
+Peso actual: {safe(paciente.peso_actual)} kg
+Peso usual: {safe(paciente.peso_usual)} kg
+Talla: {safe(paciente.talla)} cm
+IMC: {safe(paciente.ind_masa_corporal)} ({safe(paciente.clasificacion_imc)})
 Cintura: {safe(paciente.circunferencia_cintura)} cm ({safe(paciente.clasificacion_circunferencia)})
 
-🧪 EXÁMENES BIOQUÍMICOS:
+EXÁMENES BIOQUÍMICOS:
 Glicemia: {safe(bioquimico.glicemia_basal)} mg/dL ({safe(bioquimico.interpretacion_glicemia)})
-Colesterol total: {safe(bioquimico.colesterol_total)} mg/dL ({safe(bioquimico.interpretacion_colesterol_total)})
-HDL: {safe(bioquimico.colesterol_hdl)} ({safe(bioquimico.interpretacion_colesterol_hdl)}), LDL: {safe(bioquimico.colesterol_ldl)} ({safe(bioquimico.interpretacion_colesterol_ldl)})
-Triglicéridos: {safe(bioquimico.trigliceridos)} ({safe(bioquimico.interpretacion_trigliceridos)}), Creatinina: {safe(bioquimico.creatinina)} ({safe(bioquimico.interpretacion_creatinina)})
+Hemoglobina glicada: {safe(bioquimico.hemoglobina_glicada)} ({safe(bioquimico.interpretacion_hemoglobina)})
+Colesterol total: {safe(bioquimico.colesterol_total)} ({safe(bioquimico.interpretacion_colesterol_total)})
+HDL: {safe(bioquimico.colesterol_hdl)} ({safe(bioquimico.interpretacion_colesterol_hdl)})
+LDL: {safe(bioquimico.colesterol_ldl)} ({safe(bioquimico.interpretacion_colesterol_ldl)})
+Triglicéridos: {safe(bioquimico.trigliceridos)} ({safe(bioquimico.interpretacion_trigliceridos)})
+Creatinina: {safe(bioquimico.creatinina)} ({safe(bioquimico.interpretacion_creatinina)})
 
-🩺 ANTECEDENTES:
-Personales: HTA: {boolean_str(antecedentes.hipertension_personal)}, Diabetes: {boolean_str(antecedentes.diabetes_personal)}, CV: {boolean_str(antecedentes.enfermedad_cardiovascular_personal)}, GI: {boolean_str(antecedentes.enfermedad_gastrointestinal_personal)}, Quirúrgicos: {safe(antecedentes.quirurgicos)}
-Familiares: HTA: {boolean_str(antecedentes.hipertension_familiar)}, Diabetes: {boolean_str(antecedentes.diabetes_familiar)}
+ANTECEDENTES:
+HTA personal: {boolean_str(antecedentes.hipertension_personal)}
+Diabetes personal: {boolean_str(antecedentes.diabetes_personal)}
+Enfermedad cardiovascular personal: {boolean_str(antecedentes.enfermedad_cardiovascular_personal)}
+Enfermedad gastrointestinal personal: {boolean_str(antecedentes.enfermedad_gastrointestinal_personal)}
+HTA familiar: {boolean_str(antecedentes.hipertension_familiar)}
+Diabetes familiar: {boolean_str(antecedentes.diabetes_familiar)}
+Quirúrgicos: {safe(antecedentes.quirurgicos)}
 
-🌿 CONDICIONES AMBIENTALES:
-Alcoholismo: {boolean_str(circunstancia.alcoholismo)}, Drogas: {boolean_str(circunstancia.abuso_drogas)}, Limitaciones económicas: {boolean_str(circunstancia.limitaciones_economicas)}
+CONDICIONES AMBIENTALES:
+Alcoholismo: {boolean_str(circunstancia.alcoholismo)}
+Abuso de drogas: {boolean_str(circunstancia.abuso_drogas)}
+Limitaciones económicas: {boolean_str(circunstancia.limitaciones_economicas)}
 
-🧍 EXAMEN FÍSICO:
-Palidez: {boolean_str(examen_fisico.palidez)}, Glositis: {boolean_str(examen_fisico.glositis)}, Lesiones en piel: {boolean_str(examen_fisico.dermatitis)}, Caída de cabello: {boolean_str(examen_fisico.alopecia)}
+EXAMEN FÍSICO:
+Palidez: {boolean_str(examen_fisico.palidez)}
+Glositis: {boolean_str(examen_fisico.glositis)}
+Dermatitis: {boolean_str(examen_fisico.dermatitis)}
+Alopecia: {boolean_str(examen_fisico.alopecia)}
 
-🍽️ DATOS ALIMENTARIOS:
-Intolerancias: {boolean_str(datos_alimentarios.intolerancia_alimentos)} → {safe(datos_alimentarios.alimentos_intolerancia)}
-Problemas digestivos: {boolean_str(datos_alimentarios.problemas_digestivos)} → {safe(datos_alimentarios.tipo_problema_digestivo)}
-Frecuencia de comida: {safe(datos_alimentarios.frecuencia_comida)}, Medicamentos: {safe(datos_alimentarios.lista_medicamentos)}
-Suplementos: {boolean_str(datos_alimentarios.toma_suplementos)}, Agrega sal: {boolean_str(datos_alimentarios.agrega_sal)}
+DATOS ALIMENTARIOS:
+Intolerancias: {boolean_str(datos_alimentarios.intolerancia_alimentos)} -> {safe(datos_alimentarios.alimentos_intolerancia)}
+Problemas digestivos: {boolean_str(datos_alimentarios.problemas_digestivos)} -> {safe(datos_alimentarios.tipo_problema_digestivo)}
+Frecuencia de comida: {safe(datos_alimentarios.frecuencia_comida)}
+Medicamentos: {safe(datos_alimentarios.lista_medicamentos)}
+Suplementos: {boolean_str(datos_alimentarios.toma_suplementos)}
+Agrega sal: {boolean_str(datos_alimentarios.agrega_sal)}
+Alimentos preferidos: {safe(datos_alimentarios.alimentos_agradan)}
+Alimentos no preferidos: {safe(datos_alimentarios.alimentos_no_agradan)}
 
-🍎 FRECUENCIA DE CONSUMO DE ALIMENTOS:
-{resumen_frecuencia if resumen_frecuencia else 'No se ha registrado frecuencia de consumo.'}
+FRECUENCIA DE CONSUMO:
+{resumen_frecuencia if resumen_frecuencia else "No se ha registrado frecuencia de consumo."}
 
-📉 HERRAMIENTA MUST:
-IMC: {safe(must.imc)} ({safe(must.puntaje_imc)} pts), Pérdida peso: {safe(must.perdida_peso_porcentaje)}% ({safe(must.puntaje_perdida_peso)} pts)
+HERRAMIENTA MUST:
+IMC: {safe(must.imc)} ({safe(must.puntaje_imc)} pts)
+Pérdida de peso: {safe(must.perdida_peso_porcentaje)}% ({safe(must.puntaje_perdida_peso)} pts)
 Efecto enfermedad: {boolean_str(must.efecto_enfermedad)} ({safe(must.puntaje_efecto_enfermedad)} pts)
-Total: {safe(must.puntaje_total)} → Riesgo: {safe(must.clasificacion_riesgo)}
+Total: {safe(must.puntaje_total)}
+Riesgo: {safe(must.clasificacion_riesgo)}
 Recomendaciones: {safe(must.recomendaciones)}
-""")
+"""
 
-    messages = ChatPromptTemplate.from_messages([
-        system_prompt,
-        human_prompt
-    ]).format_messages()
+        print("Analizando datos clínicos completos del paciente...")
+        return invoke_agent(system_prompt, human_prompt, "clínico")
 
-    print("📋 Analizando datos clínicos completos del paciente...")
-    respuesta = chat.invoke(messages)
-
-    if not respuesta or not hasattr(respuesta, "content") or not respuesta.content.strip():
-        raise ValueError("La respuesta del agente clínico es vacía.")
-
-    return respuesta.content
+    finally:
+        db.close()
 
 
-# 🧬 Agente 2: Analizador de alimentos disponibles
-def analizar_alimentos_disponibles(objetivo: str) -> str:
+def obtener_resumen_local_alimentos() -> str:
     db: Session = SessionLocal()
-    alimentos = db.query(Composicion_Alimentos).all()
-    if not alimentos:
-        return "No hay alimentos registrados."
 
-    resumen = ""
-    for alimento in alimentos[:30]:
-        nombre = alimento.nombre
-        categoria = alimento.categoria.nombre if alimento.categoria else "Sin categoría"
-        prox = alimento.analisis_proximal
-        mins = alimento.minerales
-        vits = alimento.vitaminas
-        grasas = alimento.acidos_grasos_colesterol
+    try:
+        alimentos = db.query(Composicion_Alimentos).limit(20).all()
 
-        resumen += f"""
-🍴 **{nombre}** ({categoria})
-- Energía: {prox.energia_kcal if prox else "N/A"} kcal
-- Proteína: {prox.proteina if prox else "N/A"} g
-- Carbohidratos: {prox.carbohidratos_disponibles if prox else "N/A"} g
-- Grasas saturadas: {grasas.grasa_saturada if grasas else "N/A"} g
-- Hierro: {mins.hierro if mins else "N/A"} mg
-- Vitamina C: {vits.vitamina_c if vits else "N/A"} mg
-        """ + "\n\n"
+        if not alimentos:
+            return "No hay alimentos registrados. Usar alimentos comunes y económicos."
 
-    system_prompt = SystemMessagePromptTemplate.from_template("""
-Eres un nutricionista experto en composición de alimentos. Recibes una lista de alimentos disponibles y el objetivo nutricional del paciente.
-Tu tarea es identificar cuáles alimentos son útiles para ese objetivo (ej: pérdida de peso, ganancia muscular, etc.) y preparar un resumen práctico para el planificador.
-No repitas todos los datos, extrae lo útil y agrúpalo.
-""")
+        resumen = ""
+        for alimento in alimentos:
+            nombre = safe(alimento.nombre)
+            categoria = alimento.categoria.nombre if getattr(alimento, "categoria", None) else "Sin categoría"
+            prox = getattr(alimento, "analisis_proximal", None)
 
-    human_prompt = HumanMessagePromptTemplate.from_template(f"""
-🎯 OBJETIVO DEL PACIENTE: {objetivo}
-📚 ALIMENTOS Y SU COMPOSICIÓN:
-{resumen}
-""")
+            resumen += (
+                f"- {nombre} ({categoria}): "
+                f"{safe(prox.energia_kcal if prox else None)} kcal, "
+                f"{safe(prox.proteina if prox else None)} g proteína, "
+                f"{safe(prox.carbohidratos_disponibles if prox else None)} g carbohidratos.\n"
+            )
 
-    messages = ChatPromptTemplate.from_messages([
-        system_prompt,
-        human_prompt
-    ]).format_messages()
+        return resumen
 
-    print("📋 Analizando alimentos disponibles...")
-    respuesta = chat.invoke(messages)
+    finally:
+        db.close()
 
-    if not respuesta or not hasattr(respuesta, "content") or not respuesta.content.strip():
-        raise ValueError("La respuesta del agente de alimentos es vacía.")
 
-    return respuesta.content
-
-#agente 3 analizador lista intercambi0
-def analizar_lista_intercambios() -> str:
+def obtener_resumen_local_intercambios() -> str:
     db: Session = SessionLocal()
-    lista = db.query(ListaIntercambios).limit(100).all()  # Puedes ajustar el límite si lo deseas
 
-    if not lista:
-        return "No hay datos registrados en la lista de intercambios."
+    try:
+        lista = db.query(ListaIntercambios).limit(30).all()
 
-    resumen = ""
-    for item in lista:
-        resumen += f"""
-🍽️ **{item.alimento}** ({item.gramos} g, {item.unidad_medida})
-- Energía: {item.kcal} kcal
-- Proteína: {item.proteina_g} g
-- Grasas totales: {item.grasa_total_g} g
-- CHO: {item.cho_g} g
-- Fibra: {item.fibra_dietetica_g} g
-- Sodio: {item.sodio_mg} mg
-- Vitamina C: {item.vitc_mg} mg
-- Hierro: {item.hierro_mg} mg
-        """ + "\n"
+        if not lista:
+            return "No hay lista de intercambios registrada. Usar equivalencias alimentarias generales."
 
-    system_prompt = SystemMessagePromptTemplate.from_template("""
-Eres un nutricionista especializado en listas de intercambios alimentarios.
+        resumen = ""
+        for item in lista:
+            resumen += (
+                f"- {safe(item.alimento)}: {safe(item.gramos)} g, "
+                f"{safe(item.kcal)} kcal, "
+                f"{safe(item.proteina_g)} g proteína, "
+                f"{safe(item.cho_g)} g CHO, "
+                f"{safe(item.grasa_total_g)} g grasa.\n"
+            )
 
-Tu tarea es procesar la siguiente información nutricional de una lista de alimentos y extraer patrones útiles, grupos comunes y observaciones relevantes para ayudar al planificador a seleccionar combinaciones apropiadas de alimentos por grupos.
+        return resumen
 
-Identifica alimentos con alto valor nutricional, intercambiables y aquellos con limitaciones (por ejemplo, alto sodio).
-""")
-
-    human_prompt = HumanMessagePromptTemplate.from_template(f"""
-📚 LISTA DE INTERCAMBIOS:
-{resumen}
-""")
-
-    messages = ChatPromptTemplate.from_messages([
-        system_prompt,
-        human_prompt
-    ]).format_messages()
-
-    print("📦 Analizando lista de intercambios...")
-    respuesta = chat.invoke(messages)
-
-    if not respuesta or not hasattr(respuesta, "content") or not respuesta.content.strip():
-        raise ValueError("La respuesta del agente de intercambios es vacía.")
-
-    return respuesta.content
+    finally:
+        db.close()
 
 
-# 📋 Agente 4: Planificador nutricional
-def generar_plan_nutricional(resumen_clinico: str, alimentos: str, objetivo: str, intercambios: str) -> str:
-    system_prompt = SystemMessagePromptTemplate.from_template("""
-Eres un nutricionista clínico que genera planes de alimentación semanales personalizados para pacientes.
+def generar_plan_nutricional(
+    resumen_clinico: str,
+    alimentos: str,
+    objetivo: str,
+    intercambios: str,
+) -> str:
+    system_prompt = """
+Eres un nutricionista clínico experto en planificación alimentaria.
 
-Tu tarea es crear un plan semanal (7 días), incluyendo:
+Genera un plan alimentario personalizado semanal de 7 días.
 
-✅ 5 tiempos de comida por día: desayuno, media mañana, almuerzo, media tarde y cena  
-✅ Ingredientes comunes y disponibles según la lista proporcionada  
-✅ Usa también información de la lista de intercambios para combinar alimentos nutricionalmente equivalentes  
-✅ Porciones **claras** usando unidades como gramos, tazas, cucharadas, piezas, etc.  
-✅ Ajuste del plan al **objetivo del paciente** y su estado clínico  
+Reglas:
+- Debe tener 5 tiempos de comida por día:
+  desayuno, media mañana, almuerzo, media tarde y cena.
+- Usa porciones claras: gramos, tazas, cucharadas, unidades o piezas.
+- Considera objetivo, estado clínico, preferencias, intolerancias y limitaciones económicas.
+- Usa los alimentos disponibles y las equivalencias si son útiles.
+- No inventes diagnósticos ni datos clínicos.
+- Si falta información, genera un plan conservador.
+- El plan es una ayuda para el nutricionista, no reemplaza criterio profesional.
 
-Usa una estructura clara, títulos por día y tiempo de comida. Finaliza con recomendaciones.
-""")
+Estructura:
+1. Introducción personalizada.
+2. Plan Día 1 al Día 7.
+3. Recomendaciones finales.
+4. Observaciones para seguimiento.
+"""
 
-    human_prompt = HumanMessagePromptTemplate.from_template(f"""
-🎯 OBJETIVO DEL PACIENTE:
+    human_prompt = f"""
+OBJETIVO DEL PACIENTE:
 {objetivo}
 
-📄 RESUMEN CLÍNICO:
+RESUMEN CLÍNICO:
 {resumen_clinico}
 
-🥦 ANÁLISIS DE ALIMENTOS:
+ALIMENTOS DISPONIBLES O REFERENCIA:
 {alimentos}
 
-🔁 LISTA DE INTERCAMBIOS:
+LISTA DE INTERCAMBIOS O REFERENCIA:
 {intercambios}
-""")
+"""
 
-    messages = ChatPromptTemplate.from_messages([
-        system_prompt,
-        human_prompt
-    ]).format_messages()
-
-    print("🧠 Generando plan semanal detallado con porciones e intercambios...")
-    respuesta = chat.invoke(messages)
-
-    if not respuesta or not hasattr(respuesta, "content") or not respuesta.content.strip():
-        raise ValueError("La respuesta del agente planificador es vacía.")
-
-    return respuesta.content
+    print("Generando plan semanal detallado...")
+    return invoke_agent(system_prompt, human_prompt, "planificador")
 
 
-
-# ✅ Agente 5: Evaluador del plan generado
 def evaluar_plan_nutricional(plan_generado: str, resumen_clinico: str, objetivo: str) -> str:
-    system_prompt = SystemMessagePromptTemplate.from_template("""
-Eres un nutricionista clínico evaluador. Te han entregado un plan nutricional personalizado para un paciente, junto con su perfil clínico y objetivo nutricional.
-
-Tu tarea es evaluar si el plan:
-
-✅ Cumple con el objetivo (pérdida de peso, ganancia muscular, control glicémico, etc.)  
-✅ Está alineado con las condiciones clínicas (colesterol, hipertensión, intolerancias, etc.)  
-✅ Usa alimentos adecuados y equilibrados  
-✅ Incluye una buena distribución de tiempos de comida y porciones razonables  
-
-🎯 Da una evaluación crítica y profesional (no repitas el plan), señalando fortalezas y sugerencias de mejora si aplica. Finaliza con un **veredicto**:  
-- "El plan es adecuado y cumple con el objetivo."  
-- "El plan necesita ajustes por...".
-""")
-
-    human_prompt = HumanMessagePromptTemplate.from_template(f"""
-📄 PLAN NUTRICIONAL GENERADO:
-{plan_generado}
-
-🧑‍⚕️ RESUMEN CLÍNICO DEL PACIENTE:
-{resumen_clinico}
-
-🎯 OBJETIVO NUTRICIONAL:
-{objetivo}
-""")
-
-    messages = ChatPromptTemplate.from_messages([
-        system_prompt,
-        human_prompt
-    ]).format_messages()
-
-    print("🔍 Evaluando el plan nutricional generado...")
-    respuesta = chat.invoke(messages)
-
-    if not respuesta or not hasattr(respuesta, "content") or not respuesta.content.strip():
-        raise ValueError("La respuesta del evaluador es vacía.")
-
-    return respuesta.content
+    return (
+        "Evaluación automática desactivada en modo gratuito para evitar exceder la cuota de Gemini. "
+        "Se recomienda revisión final por parte del nutricionista."
+    )
 
 
-# 🧾 Agente 6: correguidor de plan
 def corregir_plan_nutricional(plan: str, evaluacion: str, objetivo: str) -> str:
-    system_prompt = SystemMessagePromptTemplate.from_template("""
-Eres un nutricionista clínico experto en corrección de planes nutricionales.
-
-Te han entregado un plan de alimentación y una evaluación con observaciones. Tu tarea es **modificar y corregir** el plan para que:
-
-✅ Cumpla con el objetivo del paciente  
-✅ Solucione los puntos señalados en la evaluación  
-✅ Mantenga claridad, 5 tiempos de comida diarios para la semana, porciones específicas y alimentos disponibles  
-
-No ignores los comentarios de la evaluación. Corrige el plan de forma realista y completa.
-""")
-
-    human_prompt = HumanMessagePromptTemplate.from_template(f"""
-📄 PLAN ORIGINAL:
-{plan}
-
-🧪 EVALUACIÓN DEL PLAN:
-{evaluacion}
-
-🎯 OBJETIVO:
-{objetivo}
-""")
-
-    messages = ChatPromptTemplate.from_messages([
-        system_prompt,
-        human_prompt
-    ]).format_messages()
-
-    print("🛠️ Corrigiendo el plan según la evaluación...")
-    respuesta = chat.invoke(messages)
-
-    if not respuesta or not hasattr(respuesta, "content") or not respuesta.content.strip():
-        raise ValueError("La respuesta del agente corregidor es vacía.")
-
-    return respuesta.content
+    return plan
 
 
-# 🤖 Orquestador general
 def generar_plan_multiagente(paciente_id: int, objetivo: str) -> dict:
+    if not objetivo or not objetivo.strip():
+        raise ValueError("El objetivo nutricional es obligatorio.")
+
     resumen_clinico = analizar_datos_clinicos(paciente_id)
-    alimentos = analizar_alimentos_disponibles(objetivo)
-    intercambios = analizar_lista_intercambios()
 
-    intentos = 0
-    max_intentos = 3
+    if resumen_clinico == "Paciente no encontrado.":
+        raise ValueError("Paciente no encontrado.")
 
-    while intentos < max_intentos:
-        intentos += 1
-        print(f"🔁 Intento {intentos} de generación del plan...")
-        plan = generar_plan_nutricional(resumen_clinico, alimentos, objetivo, intercambios)
-        evaluacion = evaluar_plan_nutricional(plan, resumen_clinico, objetivo)
+    alimentos = obtener_resumen_local_alimentos()
+    intercambios = obtener_resumen_local_intercambios()
 
-        if "El plan es adecuado" in evaluacion or "aprobado" in evaluacion.lower():
-            return {
-                "plan_simplificado": plan,
-                "evaluacion": evaluacion
-            }
+    plan = generar_plan_nutricional(
+        resumen_clinico=resumen_clinico,
+        alimentos=alimentos,
+        objetivo=objetivo,
+        intercambios=intercambios,
+    )
 
-    print("⚠️ Invocando corrector...")
-    plan_corregido = corregir_plan_nutricional(plan, evaluacion, objetivo)
-    evaluacion_final = evaluar_plan_nutricional(plan_corregido, resumen_clinico, objetivo)
+    evaluacion = evaluar_plan_nutricional(
+        plan_generado=plan,
+        resumen_clinico=resumen_clinico,
+        objetivo=objetivo,
+    )
 
-    if "El plan es adecuado" in evaluacion_final or "aprobado" in evaluacion_final.lower():
-        return {
-            "plan_simplificado": plan_corregido,
-            "evaluacion": evaluacion_final
-        }
-
-    raise RuntimeError("No se logró generar un plan adecuado.")
-
+    return {
+        "plan_simplificado": plan,
+        "evaluacion": evaluacion,
+    }

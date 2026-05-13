@@ -33,7 +33,6 @@ app.include_router(frecuencia_consumo_alimentos.router)
 app.include_router(datos_alimentarios.router)
 app.include_router(circunstancias_ambientales.router)
 app.include_router(antecedentes_patologicos.router)
-app.include_router(plan_alimentacion.router)
 app.include_router(plan_nutricional.router)
 
 
