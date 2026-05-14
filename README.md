@@ -214,7 +214,7 @@ El sistema cuenta con gestión de accesos basada en los siguientes roles:
 ---
 
 ## Autor
-**[Tu Nombre / Tu Empresa]**
-- [LinkedIn](#)
+**[JAVIER HERRERA  / UNIPAMPLONA ]**
+- [www.linkedin.com/in/javier-humberto-herrera-naranjo-bab327225](#)
 - [GitHub](#)
 - Licencia: MIT
