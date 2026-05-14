@@ -1,35 +1,28 @@
-@"
-# Variables de entorno
-.env
-.env.*
-!.env.example
+# Entornos virtuales
+venv/
+.env/
 
 # Python
-venv/
-.venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.db
-*.sqlite
+
+# FastAPI / logs
+*.log
+
+# Base de datos local
 *.sqlite3
 
-# Node / React
-node_modules/
-frontend/node_modules/
-dist/
-build/
-frontend/dist/
-frontend/build/
-
-# Logs
-*.log
-.codex/
-
-# IDE / Sistema
+# VS Code
 .vscode/
-.idea/
+
+# Node
+node_modules/
+
+# Vite
+dist/
+
+# OS
 .DS_Store
 Thumbs.db
-"@ | Set-Content .gitignore -Encoding UTF8
