@@ -119,19 +119,82 @@ GEMINI_MODEL=gemini-1.5-flash
 
 ---
 
-## Capturas de Pantalla
+## 📸 Capturas del Sistema
 
-*Placeholders para futuras capturas de pantalla de la aplicación:*
+### 🔐 Inicio de Sesión
+![Login](screenshots/login.jpeg)
 
-![Dashboard de Pacientes](#)
-*Vista principal del directorio de pacientes.*
+*Pantalla moderna de autenticación para administradores y nutricionistas.*
 
-![Formularios Clínicos](#)
-*Ejemplo del diseño moderno de los formularios (ej. Datos Alimentarios, R24).*
+---
 
-![Generador de Planes IA](#)
-*Vista de regeneración del plan nutricional y exportación PDF.*
+### 👥 Dashboard de Pacientes
+![Dashboard de Pacientes](screenshots/lista_pacientes.jpeg)
 
+*Vista principal del directorio clínico de pacientes con accesos rápidos y métricas visuales.*
+
+---
+
+### 🩺 Perfil Clínico del Paciente
+![Perfil del Paciente](screenshots/paciente_ver.jpeg)
+
+*Dashboard individual del paciente con métricas antropométricas, accesos clínicos y visualización del plan nutricional.*
+
+---
+
+### 📋 Herramienta MUST
+![Herramienta MUST](screenshots/herramienta_must.jpeg)
+
+*Evaluación del riesgo nutricional mediante la herramienta MUST modernizada visualmente.*
+
+---
+
+### 🧪 Exámenes Bioquímicos
+![Exámenes Bioquímicos](screenshots/examenes_bioquimicos.jpeg)
+
+*Registro y visualización de indicadores bioquímicos relevantes para el análisis nutricional.*
+
+---
+
+### 🍽️ Datos Alimentarios
+![Datos Alimentarios](screenshots/datos_alimentarios.jpeg)
+
+*Formulario clínico para hábitos alimentarios, intolerancias y preferencias nutricionales.*
+
+---
+
+### 📝 Frecuencia de Consumo
+![Frecuencia de Consumo](screenshots/frecuencia_consumo_alimentos.jpeg)
+
+*Gestión dinámica de alimentos consumidos y clasificación de frecuencia alimentaria.*
+
+---
+
+### 📖 Recordatorio de 24 Horas (R24)
+![R24](screenshots/R24.jpeg)
+
+*Registro detallado del consumo alimentario diario del paciente.*
+
+---
+
+### 🧬 Antecedentes Patológicos
+![Antecedentes Patológicos](screenshots/antecedentes_patologicos.jpeg)
+
+*Gestión clínica de antecedentes personales y familiares relevantes.*
+
+---
+
+### 🌎 Circunstancias Ambientales
+![Circunstancias Ambientales](screenshots/circunstancias_ambientales.jpeg)
+
+*Evaluación de factores sociales y ambientales que afectan el estado nutricional.*
+
+---
+
+### 📄 Plan Nutricional Generado con IA
+![Plan Nutricional](screenshots/plan_generado.jpeg)
+
+*Visualización y regeneración de planes alimentarios personalizados utilizando Google Gemini + LangChain.*
 ---
 
 ## Roles de Usuario
