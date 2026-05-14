@@ -6,7 +6,7 @@ import {
   updateCircunstanciaAmbiental,
 } from "../../services/circunstanciasAmbientalesService";
 import type { CircunstanciaAmbiental } from "../../types";
-import { Button, Form, Spinner, Card } from "react-bootstrap";
+import { Save, XCircle, CheckCircle2, AlertCircle, AlertTriangle } from "lucide-react";
 
 const defaultState: CircunstanciaAmbiental = {
   id: undefined,
@@ -31,6 +31,9 @@ const CircunstanciasAmbientalesForm = () => {
   const [formData, setFormData] = useState<CircunstanciaAmbiental>(defaultState);
   const [loading, setLoading] = useState(true);
   const [editId, setEditId] = useState<number | null>(null);
+  
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -46,9 +49,9 @@ const CircunstanciasAmbientalesForm = () => {
             id_paciente: parseInt(idPaciente || ""),
           }));
         }
-      } catch (error) {
-        console.error("Error al cargar circunstancias:", error);
-        alert("Error al cargar circunstancias");
+      } catch (err) {
+        console.error("Error al cargar circunstancias:", err);
+        setError("Error al cargar circunstancias");
       } finally {
         setLoading(false);
       }
@@ -68,79 +71,99 @@ const CircunstanciasAmbientalesForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+
     try {
       if (editId) {
         await updateCircunstanciaAmbiental(editId, formData);
-        alert("Circunstancia actualizada correctamente");
       } else {
         await createCircunstanciaAmbiental(formData);
-        alert("Circunstancia creada correctamente");
       }
-      navigate("/pacientes");
-    } catch (error) {
-      console.error("Error al guardar:", error);
-      alert("Error al guardar circunstancia ambiental");
+      navigate(idPaciente ? `/pacientes/ver/${idPaciente}` : '/pacientes');
+    } catch (err) {
+      console.error("Error al guardar:", err);
+      setError("Error al guardar circunstancia ambiental");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleCancel = () => {
-    navigate("/pacientes");
+    navigate(idPaciente ? `/pacientes/ver/${idPaciente}` : '/pacientes');
   };
 
   const campos = Object.entries(formData).filter(
     ([key]) => key !== "id" && key !== "id_paciente"
   );
 
+  if (loading) {
+    return (
+      <div className="d-flex flex-column justify-content-center align-items-center py-5">
+        <div className="spinner-border text-primary mb-3" role="status"></div>
+        <p className="text-muted">Cargando datos...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="container mt-5">
-      <div className="text-center mb-4">
-        <h2 className="fw-bold">
-          {editId ? "Editar" : "Registrar"} Circunstancias Ambientales
-        </h2>
-        <hr />
+    <form onSubmit={handleSubmit}>
+      {error && (
+        <div className="alert alert-danger d-flex align-items-center gap-2 mb-4 rounded-3 border-0" role="alert">
+          <AlertCircle size={20} />
+          <div>{error}</div>
+        </div>
+      )}
+
+      <h5 className="fw-bold mb-4 d-flex align-items-center gap-2 pb-2 border-bottom" style={{ color: 'var(--color-primary)' }}>
+        <AlertTriangle size={20} /> Factores Ambientales y Sociales (Marcar si está presente)
+      </h5>
+
+      <div className="row g-3 mb-5">
+        {campos.map(([key, value]) => (
+          <div className="col-md-4 col-sm-6" key={key}>
+            <div className="form-check form-switch p-3 bg-light rounded-3 d-flex align-items-center gap-3 h-100 m-0 border border-1" style={{ borderColor: 'var(--color-border)' }}>
+              <input
+                className="form-check-input m-0 flex-shrink-0"
+                type="checkbox"
+                id={key}
+                name={key}
+                checked={value as boolean}
+                onChange={handleChange}
+                style={{ width: '2.5rem', height: '1.25rem', cursor: 'pointer' }}
+              />
+              <label className="form-check-label text-muted fw-medium m-0" htmlFor={key} style={{ cursor: 'pointer' }}>
+                {key.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
+              </label>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {loading ? (
-        <div className="text-center">
-          <Spinner animation="border" variant="primary" />
-        </div>
-      ) : (
-        <Card className="shadow-lg">
-          <Card.Header className="bg-dark text-white fw-semibold">
-            Información sobre circunstancias ambientales del paciente
-          </Card.Header>
-          <Card.Body>
-            <Form onSubmit={handleSubmit}>
-              <div className="row">
-                {campos.map(([key, value]) => (
-                  <div className="col-md-4 mb-3" key={key}>
-                    <Form.Check
-                      type="checkbox"
-                      id={key}
-                      label={key
-                        .replace(/_/g, " ")
-                        .replace(/\b\w/g, (l) => l.toUpperCase())}
-                      name={key}
-                      checked={value as boolean}
-                      onChange={handleChange}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <div className="d-flex justify-content-end mt-4 gap-2">
-                <Button type="submit" variant="success">
-                  <i className="bi bi-save me-1"></i>Guardar
-                </Button>
-                <Button variant="secondary" onClick={handleCancel}>
-                  <i className="bi bi-x-circle me-1"></i>Cancelar
-                </Button>
-              </div>
-            </Form>
-          </Card.Body>
-        </Card>
-      )}
-    </div>
+      <div className="d-flex flex-column flex-md-row gap-3 mt-4 pt-3 border-top">
+        <button 
+          type="button" 
+          className="btn btn-light text-muted d-flex align-items-center justify-content-center gap-2 py-2 px-4" 
+          onClick={handleCancel}
+          disabled={isSubmitting}
+        >
+          <XCircle size={20} /> Cancelar
+        </button>
+        <button 
+          type="submit" 
+          className="btn d-flex align-items-center justify-content-center gap-2 py-2 px-4 ms-md-auto" 
+          style={{ backgroundColor: 'var(--color-primary)', color: 'white', fontWeight: 500 }}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+          ) : (
+            <Save size={20} />
+          )}
+          <span>{editId ? "Actualizar Datos" : "Guardar Datos"}</span>
+        </button>
+      </div>
+    </form>
   );
 };
 

@@ -4,7 +4,7 @@ import { getPacientes, deletePaciente } from '../services/pacienteService';
 import { postPlanAlimentacion } from '../services/planAlimentacionService';
 import type { Paciente } from '../types';
 import Modal from 'react-bootstrap/Modal';
-import { Users, Plus, Eye, Edit2, Trash2, FileText, Search, Activity, UserX, UserPlus, ClipboardList } from 'lucide-react';
+import { Users, Plus, Eye, Edit2, Trash2, FileText, Search, Activity, UserX, UserPlus, ClipboardList, Apple } from 'lucide-react';
 
 const PacienteListPage: React.FC = () => {
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
@@ -194,7 +194,7 @@ const PacienteListPage: React.FC = () => {
                       <td className="px-4 py-3 text-end">
                         <div className="d-flex justify-content-end gap-2">
                           <button className="btn btn-sm btn-light text-primary border-0" onClick={() => handleVerPlan(p.id)} title="Generar Plan Alimenticio">
-                            <Activity size={18} />
+                            <Apple size={18} />
                           </button>
                           <button className="btn btn-sm btn-light text-secondary border-0" onClick={() => handleEdit(p.id)} title="Editar Paciente">
                             <Edit2 size={18} />

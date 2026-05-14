@@ -8,7 +8,7 @@ import {
 } from "../services/examenesBioquimicosService";
 import type { ExamenBioquimico } from "../types";
 import ExamenesBioquimicosForm from "../components/Examenes_Bioquimicos/ExamenesBioquimicosForm";
-import ExamenesBioquimicosList from "../components/Examenes_Bioquimicos/ExamenesBioquimicosList";
+import { ArrowLeftCircle, FileText } from "lucide-react";
 
 const ExamenesBioquimicosPage = () => {
   const { id } = useParams();
@@ -23,8 +23,13 @@ const ExamenesBioquimicosPage = () => {
       const data = await getExamenes();
       const filtrados = data.filter((ex) => ex.id_paciente === id_paciente);
       setExamenes(filtrados);
+      
+      // Si hay al menos un examen, usar el último para editar en lugar de crear uno nuevo siempre
+      if (filtrados.length > 0) {
+        setEditando(filtrados[0]); // Asumimos un examen por paciente por ahora o editamos el último
+      }
     } catch (error) {
-      alert("Error al cargar exámenes");
+      console.error("Error al cargar exámenes", error);
     }
   };
 
@@ -36,45 +41,40 @@ const ExamenesBioquimicosPage = () => {
     try {
       if (editando) {
         await updateExamen(editando.id, data);
-        alert("Examen actualizado exitosamente");
       } else {
         await createExamen(data);
-        alert("Examen creado exitosamente");
       }
-      setTimeout(() => navigate("/pacientes"), 3000);
-      fetchExamenes();
-      setEditando(null);
-    } catch {
-      alert("Error al guardar el examen");
-    }
-  };
-
-  const handleEditar = (ex: ExamenBioquimico) => {
-    setEditando(ex);
-  };
-
-  const handleEliminar = async (id: number) => {
-    if (!confirm("¿Eliminar este examen?")) return;
-    try {
-      await deleteExamen(id);
-      fetchExamenes();
-    } catch {
-      alert("Error al eliminar examen");
+      navigate(id_paciente ? `/pacientes/ver/${id_paciente}` : '/pacientes');
+    } catch (err) {
+      throw err;
     }
   };
 
   return (
-    <div className="container mt-4">
-      <h3>Formulario de Exámenes Bioquímicos</h3>
-      <ExamenesBioquimicosForm
-        onSubmit={handleGuardar}
-        initialData={editando ? { ...editando } : undefined}
-        editando={!!editando}
-        idPaciente={id_paciente}
-      />
+    <div className="container-fluid py-4" style={{ maxWidth: '1000px' }}>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h3 className="fw-bold mb-1 d-flex align-items-center gap-2" style={{ color: 'var(--color-text-main)' }}>
+            <FileText size={24} color="var(--color-primary)" />
+            Exámenes Bioquímicos
+          </h3>
+          <p className="text-muted mb-0">Resultados e interpretación de laboratorio.</p>
+        </div>
+        <button className="btn btn-light text-muted d-flex align-items-center gap-2 border-0" onClick={() => navigate(`/pacientes/ver/${id_paciente}`)}>
+          <ArrowLeftCircle size={20} /> Volver
+        </button>
+      </div>
 
-      <hr />
-      
+      <div className="card border-0 rounded-4 shadow-sm" style={{ backgroundColor: 'var(--color-surface)' }}>
+        <div className="card-body p-4 p-md-5">
+          <ExamenesBioquimicosForm
+            onSubmit={handleGuardar}
+            initialData={editando ? { ...editando } : undefined}
+            editando={!!editando}
+            idPaciente={id_paciente}
+          />
+        </div>
+      </div>
     </div>
   );
 };

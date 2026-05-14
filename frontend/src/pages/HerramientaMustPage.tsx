@@ -6,8 +6,8 @@ import {
   updateHerramienta,
 } from "../services/herramientaMustService";
 import type { HerramientaMust, HerramientaMustCreate } from "../types";
-import { Spinner, Alert, Container } from "react-bootstrap";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeftCircle, AlertTriangle } from "lucide-react";
 
 const HerramientaMustPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -16,6 +16,7 @@ const HerramientaMustPage: React.FC = () => {
 
   const { id } = useParams();
   const pacienteId = Number(id);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (pacienteId) {
@@ -37,39 +38,59 @@ const HerramientaMustPage: React.FC = () => {
   }, [pacienteId]);
 
   const handleSave = async (data: HerramientaMustCreate) => {
-  try {
-    if (herramienta) {
-      await updateHerramienta(herramienta.id!, data);
-      alert("Registro actualizado exitosamente");
-    } else {
-      await createHerramienta({ ...data, id_paciente: pacienteId });
-      alert("Registro creado exitosamente");
+    try {
+      if (herramienta && herramienta.id) {
+        await updateHerramienta(herramienta.id, data);
+      } else {
+        await createHerramienta({ ...data, id_paciente: pacienteId });
+      }
+      navigate(`/pacientes/ver/${pacienteId}`);
+    } catch (err) {
+      console.error(err);
+      throw err;
     }
-  } catch (err) {
-    alert("Ocurrió un error al guardar");
-  }
-};
+  };
 
-  if (loading)
+  if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ height: "50vh" }}>
-        <Spinner animation="border" role="status" />
+      <div className="container py-5 d-flex flex-column justify-content-center align-items-center min-vh-100">
+        <div className="spinner-border text-primary mb-3" role="status"></div>
+        <p className="text-muted">Cargando evaluación MUST...</p>
       </div>
     );
-
-  if (error) return <Alert variant="danger">{error}</Alert>;
+  }
 
   return (
-    <Container className="mt-4">
-  <h2 className="bg-dark text-white p-3 rounded">
-    Evaluación - Herramienta MUST
-  </h2>
-  <HerramientaMustForm
-    initialData={herramienta ?? { id_paciente: pacienteId } as HerramientaMustCreate}
-    onSubmit={handleSave}
-  />
-</Container>
+    <div className="container-fluid py-4" style={{ maxWidth: '900px' }}>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h3 className="fw-bold mb-1 d-flex align-items-center gap-2" style={{ color: 'var(--color-text-main)' }}>
+            <AlertTriangle size={24} color="var(--color-danger)" />
+            Evaluación Herramienta MUST
+          </h3>
+          <p className="text-muted mb-0">Malnutrition Universal Screening Tool.</p>
+        </div>
+        <button className="btn btn-light text-muted d-flex align-items-center gap-2 border-0" onClick={() => navigate(`/pacientes/ver/${pacienteId}`)}>
+          <ArrowLeftCircle size={20} /> Volver
+        </button>
+      </div>
 
+      {error && (
+        <div className="alert alert-danger mb-4 rounded-3 border-0">
+          {error}
+        </div>
+      )}
+
+      <div className="card border-0 rounded-4 shadow-sm" style={{ backgroundColor: 'var(--color-surface)' }}>
+        <div className="card-body p-4 p-md-5">
+          <HerramientaMustForm
+            initialData={herramienta ?? { id_paciente: pacienteId } as HerramientaMustCreate}
+            onSubmit={handleSave}
+            pacienteId={pacienteId}
+          />
+        </div>
+      </div>
+    </div>
   );
 };
 
