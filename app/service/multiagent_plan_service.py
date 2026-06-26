@@ -16,6 +16,7 @@ from app.models.models import (
     Datos_Alimentarios,
     Composicion_Alimentos,
     ListaIntercambios,
+    EvaluacionAntropometrica,
 )
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -70,6 +71,14 @@ def analizar_datos_clinicos(paciente_id: int) -> str:
         paciente = db.query(Paciente).filter(Paciente.id == paciente_id).first()
         if not paciente:
             return "Paciente no encontrado."
+
+        antropometria = (
+            db.query(EvaluacionAntropometrica)
+            .filter(EvaluacionAntropometrica.id_paciente == paciente_id)
+            .order_by(EvaluacionAntropometrica.fecha_registro.desc())
+            .first()
+            or EvaluacionAntropometrica()
+        )
 
         must = (
             db.query(Herramienta_Must)
@@ -153,11 +162,11 @@ INFORMACIÓN DEL PACIENTE:
 Nombre: {safe(paciente.nombre_completo)}
 Edad: {safe(paciente.edad)}
 Sexo: {safe(paciente.sexo)}
-Peso actual: {safe(paciente.peso_actual)} kg
-Peso usual: {safe(paciente.peso_usual)} kg
-Talla: {safe(paciente.talla)} cm
-IMC: {safe(paciente.ind_masa_corporal)} ({safe(paciente.clasificacion_imc)})
-Cintura: {safe(paciente.circunferencia_cintura)} cm ({safe(paciente.clasificacion_circunferencia)})
+Peso actual: {safe(antropometria.peso_actual)} kg
+Peso usual: {safe(antropometria.peso_usual)} kg
+Talla: {safe(antropometria.talla)} cm
+IMC: {safe(antropometria.ind_masa_corporal)} ({safe(paciente.clasificacion_imc)})
+Cintura: {safe(antropometria.circunferencia_cintura)} cm ({safe(paciente.clasificacion_circunferencia)})
 
 EXÁMENES BIOQUÍMICOS:
 Glicemia: {safe(bioquimico.glicemia_basal)} mg/dL ({safe(bioquimico.interpretacion_glicemia)})

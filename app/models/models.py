@@ -31,17 +31,13 @@ class Paciente(Base):
     direccion = Column(String, nullable = False)
     fecha_registro = Column(DateTime, default=datetime.utcnow)
     usuario_id = Column(Integer, ForeignKey("usuarios.id",ondelete="CASCADE"), nullable=False)
-    peso_actual = Column(Float, nullable=False)    
-    peso_usual = Column(Float, nullable=False) 
-    talla = Column(Integer, nullable=False)      
-    circunferencia_cintura = Column(Integer, nullable=False)
-    ind_masa_corporal = Column(Float, nullable=False)
     activo = Column(Boolean, default=True)
 
     clasificacion_imc = Column(String, nullable=True)
     clasificacion_circunferencia = Column(String, nullable=True)
 
     usuario = relationship("Usuario", back_populates="paciente")
+    evaluaciones_antropometricas = relationship("EvaluacionAntropometrica", back_populates="paciente", cascade="all, delete-orphan")
     herramienta_must = relationship("Herramienta_Must", back_populates="paciente", cascade="all, delete-orphan")
     frecuencia_consumo_alimentos = relationship("Frecuencia_Consumo_Alimentos", back_populates="paciente", cascade="all, delete-orphan")
     examenes_bioquimicos = relationship("Examenes_Bioquimicos", back_populates="paciente", cascade="all, delete-orphan")
@@ -50,7 +46,23 @@ class Paciente(Base):
     circunstancias_ambientales = relationship("Circunstancias_Ambientales", back_populates="paciente", cascade="all, delete-orphan")
     antecedentes_patologicos = relationship("Antecedentes_Patologicos", back_populates="paciente", cascade="all, delete-orphan")
     r24 = relationship("R24", back_populates="paciente", cascade="all, delete-orphan")
+    planes_nutricionales = relationship("PlanNutricional", back_populates="paciente", cascade="all, delete-orphan")
   
+
+class EvaluacionAntropometrica(Base):
+    __tablename__ = "evaluacion_antropometrica"
+
+    id = Column(Integer, primary_key=True, index=True)
+    id_paciente = Column(Integer, ForeignKey("pacientes.id", ondelete="CASCADE"), nullable=False)
+    peso_actual = Column(Float, nullable=False)    
+    peso_usual = Column(Float, nullable=False) 
+    talla = Column(Integer, nullable=False)      
+    circunferencia_cintura = Column(Integer, nullable=False)
+    ind_masa_corporal = Column(Float, nullable=False)
+    fecha_registro = Column(DateTime, default=datetime.utcnow)
+
+    paciente = relationship("Paciente", back_populates="evaluaciones_antropometricas")
+
 
 
 class Antecedentes_Patologicos(Base): 
@@ -58,6 +70,7 @@ class Antecedentes_Patologicos(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     id_paciente = Column(Integer, ForeignKey("pacientes.id", ondelete="CASCADE"), nullable=False)
+    fecha_registro = Column(DateTime, default=datetime.utcnow)
     hipertension_personal = Column(Boolean, nullable=False) 
     hipercolesterolemia_personal = Column(Boolean, nullable=False)
     diabetes_personal = Column(Boolean, nullable=False)
@@ -84,6 +97,7 @@ class Circunstancias_Ambientales(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     id_paciente = Column(Integer, ForeignKey("pacientes.id",ondelete="CASCADE"), nullable=False)
+    fecha_registro = Column(DateTime, default=datetime.utcnow)
     acalasia = Column(Boolean, nullable=False) 
     alcoholismo = Column(Boolean, nullable=False)
     esclerosis_lateral_amiotrofica = Column(Boolean, nullable=False)
@@ -105,6 +119,7 @@ class Datos_Alimentarios(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     paciente_id = Column(Integer, ForeignKey("pacientes.id",ondelete="CASCADE"), nullable=False)
+    fecha_registro = Column(DateTime, default=datetime.utcnow)
     intolerancia_alimentos = Column(Boolean, nullable=False)
     alimentos_intolerancia = Column(String, nullable=False)
     consumo_variable_emocional = Column(Boolean, nullable=False)    
@@ -127,6 +142,7 @@ class Examen_Fisico(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     id_paciente = Column(Integer, ForeignKey("pacientes.id",ondelete="CASCADE"), nullable=False)
+    fecha_registro = Column(DateTime, default=datetime.utcnow)
     petequias = Column(Boolean, nullable=False)
     dermatitis = Column(Boolean, nullable=False)    
     pelagra = Column(Boolean, nullable=False)
@@ -161,6 +177,7 @@ class Examenes_Bioquimicos(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     id_paciente = Column(Integer, ForeignKey("pacientes.id",ondelete="CASCADE"), nullable=False)
+    fecha_registro = Column(DateTime, default=datetime.utcnow)
     hemoglobina_glicada = Column(Numeric(4, 2), nullable=False)
     glicemia_basal = Column(Integer, nullable=False)    
     colesterol_total = Column(Integer, nullable=False)  
@@ -183,6 +200,7 @@ class Frecuencia_Consumo_Alimentos(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     id_paciente = Column(Integer, ForeignKey("pacientes.id",ondelete="CASCADE"), nullable=False)
+    fecha_registro = Column(DateTime, default=datetime.utcnow)
     grupo_alimentos =Column(String, nullable=False) 
     alimento = Column(String, nullable=False)   
     consume_si = Column(Boolean, nullable=False)
@@ -359,7 +377,7 @@ class ListaIntercambios(Base):
     __tablename__ = "lista_intercambios"
 
     id = Column(Integer, primary_key=True, index=True)
-    grupo_alimento_id = Column(Integer, ForeignKey("grupos_alimentos.id"), nullable=False)
+    grupo_alimento_id = Column(Integer, ForeignKey("categorias.id"), nullable=False)
     alimento = Column(String, nullable=False)
     gramos = Column(Integer, nullable=False)
     unidad_medida = Column(String, nullable=False)
@@ -390,3 +408,16 @@ class ListaIntercambios(Base):
     folato_efd_ug = Column(Float)
     vitb12_mcg = Column(Float)
     vitc_mg = Column(Float)
+
+
+class PlanNutricional(Base):
+    __tablename__ = "planes_nutricionales"
+
+    id = Column(Integer, primary_key=True, index=True)
+    id_paciente = Column(Integer, ForeignKey("pacientes.id", ondelete="CASCADE"), nullable=False)
+    objetivo = Column(String, nullable=False)
+    contenido = Column(Text, nullable=False) # Para guardar el plan simplificado en formato Markdown
+    evaluacion = Column(Text, nullable=True) # Text para soportar un análisis extenso
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+
+    paciente = relationship("Paciente", back_populates="planes_nutricionales")

@@ -9,8 +9,8 @@ export const postPlanAlimentacion = async (
   pacienteId: number,
   objetivo: string
 ): Promise<PlanAlimentacionResponse> => {
-  const response = await axios.post<PlanAlimentacionResponse>(
-    "http://localhost:8000/plan",
+  const response = await axios.post<any>(
+    "http://localhost:8000/plan-alimentacion/generar",
     {
       paciente_id: pacienteId,
       objetivo: objetivo,

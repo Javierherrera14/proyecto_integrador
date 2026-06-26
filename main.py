@@ -4,7 +4,7 @@ from app.models import models
 from app.database import engine
 from app.routers import pacientes, plan_alimentacion, usuarios
 from app.routers import login,plan_nutricional
-from app.routers import herramienta_must, examen_fisico, examenes_bioquimicos, r24, frecuencia_consumo_alimentos, datos_alimentarios, circunstancias_ambientales, antecedentes_patologicos
+from app.routers import herramienta_must, examen_fisico, examenes_bioquimicos, r24, frecuencia_consumo_alimentos, datos_alimentarios, circunstancias_ambientales, antecedentes_patologicos, evaluacion_antropometrica
 
 app = FastAPI(
     title="Sistema Nutricional Inteligente",
@@ -33,6 +33,7 @@ app.include_router(frecuencia_consumo_alimentos.router)
 app.include_router(datos_alimentarios.router)
 app.include_router(circunstancias_ambientales.router)
 app.include_router(antecedentes_patologicos.router)
+app.include_router(evaluacion_antropometrica.router)
 app.include_router(plan_nutricional.router)
 
 

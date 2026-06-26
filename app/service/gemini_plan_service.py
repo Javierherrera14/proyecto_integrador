@@ -1,19 +1,23 @@
 import os
 from typing import Any
+from datetime import datetime
 
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable, GoogleAPIError
 
 from app.database import SessionLocal
 from app.models.models import (
     Paciente,
     Herramienta_Must,
-    Frecuencia_Consumo_Alimentos,
     Antecedentes_Patologicos,
     Circunstancias_Ambientales,
     Examen_Fisico,
     Examenes_Bioquimicos,
     Datos_Alimentarios,
+    EvaluacionAntropometrica,
+    PlanNutricional
 )
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -32,9 +36,25 @@ chat = ChatGoogleGenerativeAI(
     temperature=0.4,
 )
 
-
 def safe(value: Any, default: str = "No reportado") -> Any:
     return value if value not in [None, ""] else default
+
+# =====================================================================
+# REQUISITO 2: IMPLEMENTACIÓN DE RETRIES (Tolerancia a fallos con Gemini)
+# =====================================================================
+@retry(
+    stop=stop_after_attempt(3), # Reintenta hasta 3 veces
+    wait=wait_exponential(multiplier=1, min=2, max=10), # Espera exponencial (2s, 4s, 8s)
+    retry=retry_if_exception_type((ResourceExhausted, ServiceUnavailable, GoogleAPIError, Exception)),
+    reraise=True
+)
+def invocar_gemini_con_reintento(chain, prompt_kwargs):
+    print("Invocando a Gemini (con política de reintentos)...")
+    response = chain.invoke(prompt_kwargs)
+    content = getattr(response, "content", None)
+    if not content or not str(content).strip():
+        raise ValueError("La respuesta de Gemini no contiene contenido válido.")
+    return str(content).strip()
 
 
 def generar_plan_nutricional_con_gemini(paciente_id: int, objetivo: str) -> str:
@@ -44,52 +64,24 @@ def generar_plan_nutricional_con_gemini(paciente_id: int, objetivo: str) -> str:
     db: Session = SessionLocal()
 
     try:
+        # =====================================================================
+        # REQUISITO 1: OPTIMIZACIÓN DE CONSULTAS (Uso de relaciones de SQLAlchemy)
+        # =====================================================================
+        # Hacemos una única query principal a la base de datos
         paciente = db.query(Paciente).filter(Paciente.id == paciente_id).first()
 
         if not paciente:
             return "Paciente no encontrado."
 
-        must = (
-            db.query(Herramienta_Must)
-            .filter(Herramienta_Must.id_paciente == paciente_id)
-            .first()
-            or Herramienta_Must()
-        )
-        antecedentes = (
-            db.query(Antecedentes_Patologicos)
-            .filter(Antecedentes_Patologicos.id_paciente == paciente_id)
-            .first()
-            or Antecedentes_Patologicos()
-        )
-        frecuencia = (
-            db.query(Frecuencia_Consumo_Alimentos)
-            .filter(Frecuencia_Consumo_Alimentos.id_paciente == paciente_id)
-            .all()
-        )
-        circunstancia = (
-            db.query(Circunstancias_Ambientales)
-            .filter(Circunstancias_Ambientales.id_paciente == paciente_id)
-            .first()
-            or Circunstancias_Ambientales()
-        )
-        examen_fisico = (
-            db.query(Examen_Fisico)
-            .filter(Examen_Fisico.id_paciente == paciente_id)
-            .first()
-            or Examen_Fisico()
-        )
-        bioquimico = (
-            db.query(Examenes_Bioquimicos)
-            .filter(Examenes_Bioquimicos.id_paciente == paciente_id)
-            .first()
-            or Examenes_Bioquimicos()
-        )
-        datos_alimentarios = (
-            db.query(Datos_Alimentarios)
-            .filter(Datos_Alimentarios.paciente_id == paciente_id)
-            .first()
-            or Datos_Alimentarios()
-        )
+        # Navegamos en memoria usando las relaciones de SQLAlchemy para evitar múltiples llamadas
+        antropometria = paciente.evaluaciones_antropometricas[-1] if paciente.evaluaciones_antropometricas else EvaluacionAntropometrica()
+        must = paciente.herramienta_must[0] if paciente.herramienta_must else Herramienta_Must()
+        antecedentes = paciente.antecedentes_patologicos[0] if paciente.antecedentes_patologicos else Antecedentes_Patologicos()
+        frecuencia = paciente.frecuencia_consumo_alimentos
+        circunstancia = paciente.circunstancias_ambientales[0] if paciente.circunstancias_ambientales else Circunstancias_Ambientales()
+        examen_fisico = paciente.examen_fisico[0] if paciente.examen_fisico else Examen_Fisico()
+        bioquimico = paciente.examenes_bioquimicos[0] if paciente.examenes_bioquimicos else Examenes_Bioquimicos()
+        datos_alimentarios = paciente.datos_alimentarios[0] if paciente.datos_alimentarios else Datos_Alimentarios()
 
         alimentos_consumidos = [
             f"- {safe(f.alimento, 'Alimento desconocido')} ({safe(f.grupo_alimentos, 'Grupo desconocido')})"
@@ -133,11 +125,11 @@ DATOS PERSONALES:
 - Sexo: {safe(paciente.sexo)}
 
 DATOS ANTROPOMÉTRICOS:
-- Peso actual: {safe(paciente.peso_actual)} kg
-- Peso usual: {safe(paciente.peso_usual)} kg
-- Talla: {safe(paciente.talla)} cm
-- IMC: {safe(paciente.ind_masa_corporal)} ({safe(paciente.clasificacion_imc)})
-- Circunferencia cintura: {safe(paciente.circunferencia_cintura)} cm ({safe(paciente.clasificacion_circunferencia)})
+- Peso actual: {safe(antropometria.peso_actual)} kg
+- Peso usual: {safe(antropometria.peso_usual)} kg
+- Talla: {safe(antropometria.talla)} cm
+- IMC: {safe(antropometria.ind_masa_corporal)} ({safe(paciente.clasificacion_imc)})
+- Circunferencia cintura: {safe(antropometria.circunferencia_cintura)} cm ({safe(paciente.clasificacion_circunferencia)})
 
 HERRAMIENTA MUST:
 - IMC MUST: {safe(must.imc)}
@@ -201,17 +193,27 @@ ALIMENTOS CONSUMIDOS FRECUENTEMENTE:
 
         chain = prompt | chat
 
-        print("Generando plan nutricional con Gemini...")
-        response = chain.invoke({})
+        # Llamada a IA encapsulada en la función con decorador Tenacity
+        plan_contenido = invocar_gemini_con_reintento(chain, {})
 
-        content = getattr(response, "content", None)
-        if not content or not str(content).strip():
-            raise ValueError("La respuesta de Gemini no contiene contenido válido.")
+        # =====================================================================
+        # REQUISITO 3: PERSISTENCIA DEL PLAN EN BASE DE DATOS
+        # =====================================================================
+        nuevo_plan = PlanNutricional(
+            id_paciente=paciente_id,
+            objetivo=objetivo,
+            contenido=plan_contenido,
+            fecha_creacion=datetime.utcnow()
+        )
+        db.add(nuevo_plan)
+        db.commit()
+        db.refresh(nuevo_plan)
+        print(f"✅ Plan guardado exitosamente en DB con ID: {nuevo_plan.id}")
 
-        return str(content).strip()
+        return plan_contenido
 
     except Exception as e:
-        print(f"Error al invocar Gemini: {e}")
+        print(f"❌ Error al generar o guardar el plan: {e}")
         raise RuntimeError(f"Error interno al generar el plan: {e}") from e
 
     finally:

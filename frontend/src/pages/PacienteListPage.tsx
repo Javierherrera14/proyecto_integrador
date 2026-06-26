@@ -86,11 +86,19 @@ const PacienteListPage: React.FC = () => {
   const getBadgeColor = (clasificacion: string) => {
     if (!clasificacion) return "bg-secondary";
     const lower = clasificacion.toLowerCase();
-    if (lower.includes("normal") || lower.includes("adecuado")) return "bg-success";
-    if (lower.includes("sobrepeso")) return "bg-warning text-dark";
-    if (lower.includes("obesidad") || lower.includes("riesgo")) return "bg-danger";
+    if (lower.includes("normal") || lower.includes("adecuado") || lower.includes("bajo riesgo")) return "bg-success";
+    if (lower.includes("sobrepeso") || lower.includes("riesgo incrementado") && !lower.includes("sustancialmente")) return "bg-warning text-dark";
+    if (lower.includes("obesidad") || lower.includes("sustancialmente")) return "bg-danger";
     if (lower.includes("bajo") || lower.includes("delgadez")) return "bg-info text-dark";
     return "bg-secondary";
+  };
+
+  const getClasificacionIMC = (imc: number | undefined) => {
+    if (!imc) return '';
+    if (imc < 18.5) return 'Bajo peso';
+    if (imc < 25) return 'Normal';
+    if (imc < 30) return 'Sobrepeso';
+    return 'Obesidad';
   };
 
   const pacientesFiltrados = pacientes.filter(p => 
@@ -165,7 +173,12 @@ const PacienteListPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {pacientesFiltrados.map((p) => (
+                  {pacientesFiltrados.map((p) => {
+                    const ultimaEval = p.evaluaciones_antropometricas && p.evaluaciones_antropometricas.length > 0 
+                      ? p.evaluaciones_antropometricas[0] 
+                      : null;
+                      
+                    return (
                     <tr key={p.id}>
                       <td className="px-4 py-3">
                         <div className="d-flex align-items-center gap-3">
@@ -185,10 +198,10 @@ const PacienteListPage: React.FC = () => {
                       </td>
                       <td className="py-3 text-center">
                         <div className="d-flex flex-column align-items-center gap-1">
-                          <span className={`badge ${getBadgeColor(p.clasificacion_imc || '')} rounded-pill px-2 py-1 fw-medium`} style={{ fontSize: '0.75rem' }}>
-                            IMC: {p.ind_masa_corporal ?? '-'}
+                          <span className={`badge ${getBadgeColor(p.clasificacion_imc || getClasificacionIMC(ultimaEval?.ind_masa_corporal))} rounded-pill px-2 py-1 fw-medium`} style={{ fontSize: '0.75rem' }}>
+                            IMC: {ultimaEval?.ind_masa_corporal ?? '-'}
                           </span>
-                          <span className="text-muted" style={{ fontSize: '0.7rem' }}>Cintura: {p.circunferencia_cintura ?? '-'}cm</span>
+                          <span className="text-muted" style={{ fontSize: '0.7rem' }}>Cintura: {ultimaEval?.circunferencia_cintura ?? '-'}cm</span>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-end">
@@ -232,7 +245,7 @@ const PacienteListPage: React.FC = () => {
                         )}
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>

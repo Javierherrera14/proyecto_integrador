@@ -4,6 +4,7 @@ from app.database import get_db
 from app.models.models import Usuario
 from pydantic import BaseModel
 from datetime import datetime
+from app.utils.security import get_password_hash
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
 
@@ -34,7 +35,7 @@ def crear_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
     db_usuario = Usuario(
         nombre_completo=usuario.nombre_completo,
         email=usuario.email,
-        contrasena=usuario.contrasena,
+        contrasena=get_password_hash(usuario.contrasena),
         rol=usuario.rol,
         fecha_registro=datetime.utcnow()
     )

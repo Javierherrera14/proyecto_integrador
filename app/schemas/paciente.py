@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
+from app.schemas.evaluacion_antropometrica import EvaluacionAntropometricaResponse
 
 # Base común para creación y respuesta
 class PacienteBase(BaseModel):
@@ -9,11 +10,6 @@ class PacienteBase(BaseModel):
     sexo: str
     telefono: str
     direccion: str
-    peso_actual: float
-    peso_usual: float
-    talla: int
-    circunferencia_cintura: int
-    ind_masa_corporal: float
 
 # Esquema para creación
 class PacienteCreate(PacienteBase):
@@ -26,11 +22,6 @@ class PacienteUpdate(BaseModel):
     sexo: Optional[str] = None
     telefono: Optional[str] = None
     direccion: Optional[str] = None
-    peso_actual: Optional[float] = None
-    peso_usual: Optional[float] = None
-    talla: Optional[int] = None
-    circunferencia_cintura: Optional[int] = None
-    ind_masa_corporal: Optional[float] = None  # ✅ corregido
     clasificacion_imc: Optional[str] = None
     clasificacion_circunferencia: Optional[str] = None
 
@@ -40,6 +31,7 @@ class PacienteResponse(PacienteBase):
     fecha_registro: datetime
     clasificacion_imc: Optional[str] = None
     clasificacion_circunferencia: Optional[str] = None
+    evaluaciones_antropometricas: List[EvaluacionAntropometricaResponse] = []
 
     class Config:
         orm_mode = True

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models.models import Paciente
 from app.schemas.paciente import PacienteCreate, PacienteUpdate, PacienteResponse
@@ -33,6 +33,7 @@ def obtener_pacientes(
 ):
     return (
         db.query(Paciente)
+        .options(joinedload(Paciente.evaluaciones_antropometricas))
         .filter(Paciente.usuario_id == usuario_id, Paciente.activo == True)
         .all()
     )

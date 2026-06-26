@@ -15,13 +15,20 @@ export interface Paciente {
   direccion: string;
   fecha_registro?: string;
   usuario_id: number;
+  clasificacion_imc?: string;
+  clasificacion_circunferencia?:string;
+  evaluaciones_antropometricas?: EvaluacionAntropometrica[];
+}
+
+export interface EvaluacionAntropometrica {
+  id: number;
+  id_paciente: number;
   peso_actual: number;
   peso_usual: number;
   talla: number;
   circunferencia_cintura: number;
   ind_masa_corporal: number;
-  clasificacion_imc?: string;
-  clasificacion_circunferencia?:string;
+  fecha_registro?: string;
 }
 export interface HerramientaMust {
   id?: number;

@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { ArrowLeftCircle, Download, User, Activity, FileText, ClipboardList, AlertTriangle, Stethoscope, RefreshCw, AlertCircle } from "lucide-react";
 import html2pdf from "html2pdf.js";
+import { usePatientStore } from "../store/patientStore";
+import { HistorialPlanes } from "../components/HistorialPlanes";
 import { getPacientes } from "../services/pacienteService";
 import { postPlanAlimentacion } from "../services/planAlimentacionService";
 import type { Paciente } from "../types";
@@ -15,7 +17,9 @@ const PacienteVerPage: React.FC = () => {
   const [paciente, setPaciente] = useState<Paciente | null>(null);
   const [plan, setPlan] = useState<string | null>(null);
   const [evaluacion, setEvaluacion] = useState<string | null>(null);
+  const [antropometria, setAntropometria] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const setPacienteStore = usePatientStore((state) => state.setPaciente);
   
   // States for regenerating plan
   const [showModal, setShowModal] = useState(false);
@@ -40,26 +44,44 @@ const PacienteVerPage: React.FC = () => {
         if (usuario?.id) {
           const pacientes = await getPacientes(usuario.id);
           const encontrado = pacientes.find(p => p.id === parseInt(id));
-          if (encontrado) setPaciente(encontrado);
+          if (encontrado) {
+            setPaciente(encontrado);
+            setPacienteStore(encontrado.id, encontrado.nombre_completo);
+          }
         }
       } catch (error) {
         console.error("Error fetching paciente:", error);
       }
 
-      // Obtener plan de localStorage si existe
-      const planGuardado = localStorage.getItem("planAlimentacionGenerado");
-      if (planGuardado) {
-        try {
-          const parsed = JSON.parse(planGuardado);
-          setPlan(parsed.plan_simplificado ?? null);
-          setEvaluacion(parsed.evaluacion ?? null);
-        } catch {
-          setPlan(null);
-          setEvaluacion(null);
+      // Fetch Antropometría
+      try {
+        const res = await fetch(`http://localhost:8000/evaluacion_antropometrica/?id_paciente=${id}`);
+        if (res.ok) {
+          const evals = await res.json();
+          if (evals && evals.length > 0) {
+            setAntropometria(evals[0]);
+          }
         }
-        // Opcional: no limpiarlo aquí si queremos mantener la persistencia al recargar
-        // Pero para mantener la consistencia actual, podemos dejar el removeItem o no.
-        // Si el usuario quiere mantener el plan en el page refresh, habría que guardarlo en backend.
+      } catch (e) {
+        console.error("Error fetching antropometría:", e);
+      }
+
+      // Fetch plan activo (último)
+      try {
+        const res = await fetch(`http://localhost:8000/plan-alimentacion/historial/${id}`);
+        if (res.ok) {
+          const planes = await res.json();
+          if (planes && planes.length > 0) {
+            const ultimoPlan = planes[0]; 
+            setPlan(ultimoPlan.contenido || ultimoPlan.plan_simplificado || ultimoPlan.plan_alimentacion || null);
+            setEvaluacion(ultimoPlan.evaluacion || null);
+          } else {
+            setPlan(null);
+            setEvaluacion(null);
+          }
+        }
+      } catch (e) {
+        console.error("Error fetching planes:", e);
       }
 
       setLoading(false);
@@ -100,12 +122,12 @@ const PacienteVerPage: React.FC = () => {
 
     try {
       const response = await postPlanAlimentacion(parseInt(id), objetivoFinal.trim());
-      // Update displayed plan
-      setPlan(response.plan_simplificado ?? null);
-      setEvaluacion(response.evaluacion ?? null);
       
-      // Update localStorage to match list page behavior
-      localStorage.setItem("planAlimentacionGenerado", JSON.stringify(response));
+      // Eliminamos el uso de localStorage, ya que el componente HistorialPlanes y el useEffect lo leen de la base de datos
+      
+      // 2. Actualizamos la variable de estado (state) del componente de forma reactiva
+      setPlan(response.plan_alimentacion || response.contenido || response.plan_simplificado || null);
+      setEvaluacion(response.evaluacion || null);
       
       setShowModal(false);
     } catch (error: any) {
@@ -123,11 +145,32 @@ const PacienteVerPage: React.FC = () => {
   const getBadgeColor = (clasificacion: string) => {
     if (!clasificacion) return "bg-secondary";
     const lower = clasificacion.toLowerCase();
-    if (lower.includes("normal") || lower.includes("adecuado")) return "bg-success";
-    if (lower.includes("sobrepeso")) return "bg-warning text-dark";
-    if (lower.includes("obesidad") || lower.includes("riesgo")) return "bg-danger";
+    if (lower.includes("normal") || lower.includes("adecuado") || lower.includes("bajo riesgo")) return "bg-success";
+    if (lower.includes("sobrepeso") || lower.includes("riesgo incrementado") && !lower.includes("sustancialmente")) return "bg-warning text-dark";
+    if (lower.includes("obesidad") || lower.includes("sustancialmente")) return "bg-danger";
     if (lower.includes("bajo") || lower.includes("delgadez")) return "bg-info text-dark";
     return "bg-secondary";
+  };
+
+  const getClasificacionIMC = (imc: number) => {
+    if (!imc) return 'Sin clasificar';
+    if (imc < 18.5) return 'Bajo peso';
+    if (imc < 25) return 'Normal';
+    if (imc < 30) return 'Sobrepeso';
+    return 'Obesidad';
+  };
+
+  const getClasificacionCintura = (cintura: number, sexo: string) => {
+    if (!cintura || !sexo) return 'Sin clasificar';
+    const s = sexo.toLowerCase();
+    if (s === 'masculino') {
+        if (cintura > 102) return 'Riesgo sustancialmente incrementado';
+        if (cintura > 94) return 'Riesgo incrementado';
+    } else if (s === 'femenino') {
+        if (cintura > 88) return 'Riesgo sustancialmente incrementado';
+        if (cintura > 80) return 'Riesgo incrementado';
+    }
+    return 'Bajo riesgo';
   };
 
   const quickLinks = [
@@ -206,23 +249,23 @@ const PacienteVerPage: React.FC = () => {
                 <div className="col-6">
                   <div className="p-3 bg-light rounded-3 text-center h-100">
                     <div className="text-muted small mb-1">Peso Actual</div>
-                    <div className="fw-bold fs-5" style={{ color: 'var(--color-primary)' }}>{paciente.peso_actual ?? '-'} <span className="fs-6 text-muted">kg</span></div>
+                    <div className="fw-bold fs-5" style={{ color: 'var(--color-primary)' }}>{antropometria?.peso_actual ?? '-'} <span className="fs-6 text-muted">kg</span></div>
                   </div>
                 </div>
                 <div className="col-6">
                   <div className="p-3 bg-light rounded-3 text-center h-100">
                     <div className="text-muted small mb-1">Talla</div>
-                    <div className="fw-bold fs-5" style={{ color: 'var(--color-primary)' }}>{paciente.talla ?? '-'} <span className="fs-6 text-muted">cm</span></div>
+                    <div className="fw-bold fs-5" style={{ color: 'var(--color-primary)' }}>{antropometria?.talla ?? '-'} <span className="fs-6 text-muted">cm</span></div>
                   </div>
                 </div>
                 <div className="col-12">
                   <div className="p-3 bg-light rounded-3 d-flex justify-content-between align-items-center">
                     <div>
                       <div className="text-muted small mb-1">Índice de Masa Corporal</div>
-                      <div className="fw-bold fs-5">{paciente.ind_masa_corporal ?? '-'}</div>
+                      <div className="fw-bold fs-5">{antropometria?.ind_masa_corporal ?? '-'}</div>
                     </div>
-                    <span className={`badge ${getBadgeColor(paciente.clasificacion_imc || '')} rounded-pill px-3 py-2`}>
-                      {paciente.clasificacion_imc || 'Sin clasificar'}
+                    <span className={`badge ${getBadgeColor(paciente.clasificacion_imc || getClasificacionIMC(antropometria?.ind_masa_corporal))} rounded-pill px-3 py-2`}>
+                      {paciente.clasificacion_imc || getClasificacionIMC(antropometria?.ind_masa_corporal)}
                     </span>
                   </div>
                 </div>
@@ -230,10 +273,10 @@ const PacienteVerPage: React.FC = () => {
                   <div className="p-3 bg-light rounded-3 d-flex justify-content-between align-items-center">
                     <div>
                       <div className="text-muted small mb-1">Cintura</div>
-                      <div className="fw-bold fs-5">{paciente.circunferencia_cintura ?? '-'} cm</div>
+                      <div className="fw-bold fs-5">{antropometria?.circunferencia_cintura ?? '-'} cm</div>
                     </div>
-                    <span className={`badge ${getBadgeColor(paciente.clasificacion_circunferencia || '')} rounded-pill px-3 py-2`}>
-                      {paciente.clasificacion_circunferencia || 'Sin clasificar'}
+                    <span className={`badge ${getBadgeColor(paciente.clasificacion_circunferencia || getClasificacionCintura(antropometria?.circunferencia_cintura, paciente.sexo))} rounded-pill px-3 py-2`}>
+                      {paciente.clasificacion_circunferencia || getClasificacionCintura(antropometria?.circunferencia_cintura, paciente.sexo)}
                     </span>
                   </div>
                 </div>
@@ -321,7 +364,7 @@ const PacienteVerPage: React.FC = () => {
                   </div>
                   <h4 className="fw-bold text-muted mb-2">Aún no hay un plan generado</h4>
                   <p className="text-muted mb-4" style={{ maxWidth: '400px' }}>
-                    Puedes generar el plan alimentario especificando un objetivo para este paciente.
+                    Puedes generar el plan alimentario especificar un objetivo para este paciente.
                   </p>
                   <button 
                     className="btn d-flex justify-content-center align-items-center gap-2 rounded-pill px-4 py-2 text-white" 
@@ -334,6 +377,10 @@ const PacienteVerPage: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+          
+          <div className="mt-4">
+             <HistorialPlanes />
           </div>
         </div>
         
