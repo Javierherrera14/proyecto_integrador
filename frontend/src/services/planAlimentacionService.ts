@@ -2,7 +2,12 @@
 import axios from "axios";
 
 export interface PlanAlimentacionResponse {
-  plan_alimentacion: string;
+  id: number;
+  id_paciente: number;
+  objetivo: string;
+  contenido: string;
+  evaluacion?: string | null;
+  fecha_creacion: string;
 }
 
 export const postPlanAlimentacion = async (

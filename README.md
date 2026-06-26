@@ -1,6 +1,6 @@
 # Sistema Nutricional Inteligente 🍎
 
-![Estado](https://img.shields.io/badge/Estado-En_Desarrollo-yellow)
+![Estado](https://img.shields.io/badge/Estado-Versi%C3%B3n_2.0_(Estable%2FProducci%C3%B3n)-success)
 ![React](https://img.shields.io/badge/Frontend-React_+-TypeScript-blue)
 ![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688)
 ![AI](https://img.shields.io/badge/AI-Google_Gemini_API-orange)
@@ -8,13 +8,15 @@
 Plataforma clínica integral para nutricionistas que automatiza la recopilación de datos de pacientes, evaluaciones antropométricas y utiliza inteligencia artificial para la generación de planes nutricionales personalizados.
 
 ## Estado del Proyecto
-Actualmente en desarrollo activo. Frontend clínico modernizado y sistema IA funcional en entorno local.
+Versión 2.0 (Estable/Producción). Frontend clínico modernizado y sistema IA completamente robusto y persistente.
 
 ---
 
 ## Características Principales
 - **Gestión Clínica Avanzada:** Expedientes completos y cálculos automáticos (IMC, Riesgos).
 - **Asistente Nutricional con IA:** Generación automática de planes dietéticos basados en el objetivo del paciente y su historial clínico.
+- **Persistencia y Evolución:** Persistencia automática de los planes nutricionales en la base de datos, con historial evolutivo y clínico del paciente (refactorización con Alembic).
+- **Manejo de Estado Seguro:** Gestión de estado global con Zustand en el frontend para evitar colisiones de datos.
 - **Exportación Profesional:** Generación de planes en formato PDF listos para entregar al paciente.
 - **Interfaz Moderna:** Diseño responsivo, estética médica y experiencia de usuario intuitiva.
 
@@ -43,6 +45,7 @@ El sistema incorpora múltiples herramientas de evaluación estandarizadas:
 ### Frontend
 - React + TypeScript
 - Vite
+- Zustand (Gestor de estado global)
 - Bootstrap 5
 - Lucide React
 - `react-markdown` y `html2pdf.js`
@@ -51,6 +54,8 @@ El sistema incorpora múltiples herramientas de evaluación estandarizadas:
 - Python + FastAPI
 - PostgreSQL + SQLAlchemy (ORM)
 - Alembic (Migraciones)
+- Pydantic (Uso avanzado de herencia para Schemas)
+- Seguridad y Encriptación: `passlib` y `bcrypt`
 - LangChain Orchestration + Google Gemini API
 
 ---
@@ -64,6 +69,11 @@ El sistema incorpora múltiples herramientas de evaluación estandarizadas:
 ├── docs/             # Documentación del proyecto
 └── main.py           # Punto de entrada principal del backend
 ```
+
+---
+
+## Documentación Técnica
+Para conocer a fondo las decisiones de diseño, la estructura del software y los detalles sobre la refactorización de la base de datos, por favor consulta nuestra [Documentación de Arquitectura](ARCHITECTURE.md).
 
 ---
 
@@ -205,8 +215,6 @@ El sistema cuenta con gestión de accesos basada en los siguientes roles:
 ---
 
 ## Mejoras Futuras (Roadmap)
-- Persistencia de planes nutricionales en base de datos.
-- Historial evolutivo de planes generados por paciente.
 - Integración multiagente avanzada para evaluaciones cruzadas.
 - Dashboard analítico y estadístico para nutricionistas.
 - Soporte para múltiples modelos IA (LLMs intercambiables).

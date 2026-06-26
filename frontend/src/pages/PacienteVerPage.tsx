@@ -126,7 +126,7 @@ const PacienteVerPage: React.FC = () => {
       // Eliminamos el uso de localStorage, ya que el componente HistorialPlanes y el useEffect lo leen de la base de datos
       
       // 2. Actualizamos la variable de estado (state) del componente de forma reactiva
-      setPlan(response.plan_alimentacion || response.contenido || response.plan_simplificado || null);
+      setPlan(response.contenido || null);
       setEvaluacion(response.evaluacion || null);
       
       setShowModal(false);
